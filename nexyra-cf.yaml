@@ -1,0 +1,2116 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+# Description: Crea un bucket S3
+
+Parameters:
+  # MyKeyPair:
+  #   Type: String
+  #   Description: Public key material for EC2 key pair
+
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+  # AcmCertificate:
+  #   Description: The ARN of the AWS Certification Manager's Certificate 
+  #   Type: String
+
+  # InstanceType:
+  #   Description: WebServer EC2 instance type
+  #   Type: String
+  #   Default: t2.micro
+  #   AllowedValues:
+  #     - t3.micro
+  #     - t2.nano
+  #     - t2.micro
+  #   ConstraintDescription: must be a valid EC2 instance type.
+
+  # RDS Parameters
+  # DatabaseInstanceIdentifier:
+  #   AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+  #   ConstraintDescription: Must begin with a letter and contain only alphanumeric characters
+  #   Default: mysql57db
+  #   Description: Instance identifier name
+  #   MaxLength: 60
+  #   MinLength: 1
+  #   Type: String
+
+  # DatabaseName:
+  #   AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+  #   ConstraintDescription: Must begin with a letter and contain only alphanumeric characters
+  #   Default: applicationdb
+  #   Description: MySQL database name
+  #   MaxLength: 64
+  #   MinLength: 1
+  #   Type: String
+
+  # DatabaseUser:
+  #   AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+  #   ConstraintDescription: Must begin with a letter and contain only alphanumeric characters
+  #   Default: dbadmin
+  #   Description: Username for MySQL database access
+  #   MaxLength: 16
+  #   MinLength: 1
+  #   NoEcho: true
+  #   Type: String
+
+  # DatabasePassword:
+  #   AllowedPattern: '[a-zA-Z0-9]*'
+  #   ConstraintDescription: Must contain only alphanumeric characters
+  #   Default: database1407
+  #   Description: Password for MySQL database access
+  #   MaxLength: 41
+  #   MinLength: 8
+  #   NoEcho: true
+  #   Type: String
+
+  # DatabaseBackupRetentionPeriod:
+  #   ConstraintDescription: Database backup retention period must be between 0 and 35 days
+  #   Default: 0
+  #   Description: The number of days for which automatic DB snapshots are retained
+  #   MaxValue: 35
+  #   MinValue: 0
+  #   Type: Number
+
+  # DatabaseAllocatedStorage:
+  #   ConstraintDescription: Must be between 5 and 1024Gb
+  #   Default: 20
+  #   Description: The size of the database (Gb)
+  #   MaxValue: 65536
+  #   MinValue: 5
+  #   Type: Number
+
+  # DatabaseInstanceClass:
+  #   AllowedValues:
+  #     - db.t1.micro
+  #     - db.t2.micro
+  #     - db.m1.small
+  #     - db.m1.medium
+  #     - db.m1.large
+  #   ConstraintDescription: Must select a valid database instance type
+  #   Default: db.t2.micro
+  #   Description: The database instance type
+  #   Type: String
+
+  # MultiAZDatabase:
+  #   AllowedValues:
+  #     - true
+  #     - false
+  #   ConstraintDescription: Must be either true or false
+  #   Default: false
+  #   Description: Creates a Multi-AZ MySQL Amazon RDS database instance
+  #   Type: String
+
+# Metadata:
+  
+# Conditions:
+
+Mappings:
+  RegionMap:
+    # Ubuntu Linux (Debian-based)
+    eu-central-1:
+     AMI: ami-0ab1a82de7ca5889c
+    # us-east-1:
+    #  AMI: ami-0557a15b87f6559cf
+    eu-south-1:
+     AMI: ami-0b7c1c659ad014909
+    # us-west-2:
+    #  "AMI": "ami-09cd747c78a9add63"
+    # Amazon Linux (Red-Hat-based)
+    # us-east-1:
+    #  "AMI": "ami-0ed9277fb7eb570c9"
+    # us-west-2:
+    #  "AMI": "ami-00f7e5c52c0f43726"
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    # DependsOn:
+    Properties:
+      CidrBlock: 10.0.0.0/16 
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      # InstanceTenancy: String
+      # Ipv4IpamPoolId: String
+      # Ipv4NetmaskLength: Integer
+      Tags:
+        - Key: Name
+          Value: Project
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    # DependsOn:
+    Properties:
+      Tags:
+        - Key: Name
+          Value: Project
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    # DependsOn:
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+      # VpnGatewayId: String
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    # DependsOn:
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: Project Public Subnet (AZ1)
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    # DependsOn:
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs  '']
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: Project Public Subnet (AZ2)
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    # DependsOn:
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs  '']
+      CidrBlock: 10.0.11.0/24
+      MapPublicIpOnLaunch: false
+      Tags: 
+        - Key: Name
+          Value: Project Private Subnet (AZ1)
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    # DependsOn:
+    Properties: 
+      # AssignIpv6AddressOnCreation: Boolean
+      AvailabilityZone: !Select [1, !GetAZs  '']
+      # AvailabilityZoneId: String
+      CidrBlock: 10.0.12.0/24
+      # EnableDns64: Boolean
+      # Ipv6CidrBlock: String
+      # Ipv6Native: Boolean
+      MapPublicIpOnLaunch: false
+      # OutpostArn: String
+      # PrivateDnsNameOptionsOnLaunch: 
+      #   PrivateDnsNameOptionsOnLaunch
+      Tags:
+        - Key: Name
+          Value: Project Private Subnet (AZ2)
+      VpcId: !Ref VPC
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    # DependsOn:
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Project Public Routes
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    # DependsOn:
+    Properties: 
+      # CarrierGatewayId: String
+      DestinationCidrBlock: 0.0.0.0/0
+      # DestinationIpv6CidrBlock: String
+      # EgressOnlyInternetGatewayId: String
+      GatewayId: !Ref InternetGateway
+      # InstanceId: String
+      # LocalGatewayId: String
+      # NatGatewayId: String
+      # NetworkInterfaceId: String
+      RouteTableId: !Ref PublicRouteTable
+      # TransitGatewayId: String
+      # VpcEndpointId: String
+      # VpcPeeringConnectionId: String
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    # DependsOn:
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    # DependsOn:
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    # DependsOn:
+    Properties:
+      GroupDescription: Enable HTTP from 0.0.0.0/0
+      SecurityGroupEgress: 
+        - CidrIp: "0.0.0.0/0"
+          IpProtocol: "-1"
+        - CidrIpv6: "::/0"
+          IpProtocol: "-1"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+        - CidrIpv6: "::/0"
+          FromPort: 80
+          IpProtocol: "tcp"
+          ToPort: 80
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - CidrIpv6: "::/0"
+          FromPort: 22
+          IpProtocol: "tcp"
+          ToPort: 22
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - CidrIpv6: "::/0"
+          FromPort: 443
+          IpProtocol: "tcp"
+          ToPort: 443
+        - CidrIp: "0.0.0.0/0"
+          FromPort: 6379
+          IpProtocol: "tcp"
+          ToPort: 6379
+        - CidrIpv6: "::/0"
+          FromPort: 6379
+          IpProtocol: "tcp"
+          ToPort: 6379
+        - CidrIp: "0.0.0.0/0"
+          FromPort: 3301
+          IpProtocol: "tcp"
+          ToPort: 3301
+        - CidrIpv6: "::/0"
+          FromPort: 3301
+          IpProtocol: "tcp"
+          ToPort: 3301
+      VpcId: !Ref VPC
+
+  MySecurityGroupDB:
+    Type: AWS::EC2::SecurityGroup
+    # DependsOn:
+    Properties:
+      GroupDescription: DB Security Group
+      SecurityGroupEgress: 
+        - CidrIp: "0.0.0.0/0"
+          IpProtocol: "-1"
+        - CidrIpv6: "::/0"
+          IpProtocol: "-1"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - CidrIpv6: "::/0"
+          FromPort: 22
+          IpProtocol: "tcp"
+          ToPort: 22
+        - CidrIp: "0.0.0.0/0"
+          FromPort: 3301
+          IpProtocol: "tcp"
+          ToPort: 3301
+        - CidrIpv6: "::/0"
+          FromPort: 3301
+          IpProtocol: "tcp"
+          ToPort: 3301
+        - CidrIp: "0.0.0.0/0"
+          FromPort: 443
+          IpProtocol: "tcp"
+          ToPort: 443
+        - CidrIpv6: "::/0"
+          FromPort: 443
+          IpProtocol: "tcp"
+          ToPort: 443
+      VpcId: !Ref VPC
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    # DependsOn:
+    Properties: 
+    #   AdditionalInfo: String
+    #   Affinity: String
+      # AvailabilityZone: !Select [1, !GetAZs  '']
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs: 
+            DeleteOnTermination: false
+            # Encrypted: true
+            # Iops: 32000
+            # KmsKeyId: String
+            # SnapshotId: String
+            VolumeSize: 20
+            VolumeType: gp3
+            # VolumeType: io1
+          # NoDevice: Json
+          # VirtualName: String
+    #   CpuOptions: 
+    #     CpuOptions
+    #   CreditSpecification: 
+    #     CreditSpecification
+    #   DisableApiTermination: Boolean
+      # EbsOptimized: true
+    #   ElasticGpuSpecifications: 
+    #     - ElasticGpuSpecification
+    #   ElasticInferenceAccelerators: 
+    #     - ElasticInferenceAccelerator
+    #   EnclaveOptions: 
+    #     EnclaveOptions
+    #   HibernationOptions: 
+    #     HibernationOptions
+    #   HostId: String
+    #   HostResourceGroupArn: String
+    #   IamInstanceProfile: String
+      ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", AMI]
+    #   InstanceInitiatedShutdownBehavior: String
+      InstanceType: t3.micro
+    #   Ipv6AddressCount: Integer
+    #   Ipv6Addresses: 
+    #     - InstanceIpv6Address
+    #   KernelId: String
+      KeyName: !Ref KeyName
+    #   LaunchTemplate: 
+    #     LaunchTemplateSpecification
+    #   LicenseSpecifications: 
+    #     - LicenseSpecification
+    #   Monitoring: Boolean
+    #   NetworkInterfaces: 
+    #     - NetworkInterface
+    #   PlacementGroupName: String
+    #   PrivateDnsNameOptions: 
+    #     PrivateDnsNameOptions
+    #   PrivateIpAddress: String
+    #   PropagateTagsToVolumeOnCreation: Boolean
+    #   RamdiskId: String
+      SecurityGroupIds: 
+        - !Ref MySecurityGroupDB
+        # - !Ref MySecurityGroup
+    #   SecurityGroups: 
+    #     - String
+    #   SourceDestCheck: Boolean
+    #   SsmAssociations: 
+    #     - SsmAssociation
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+       - Key: Name
+         Value: app-db     
+    #   Tenancy: String
+      UserData:
+        # Fn::Base64: !Sub |
+        #     #!/bin/bash
+        #     yum install httpd -y
+        #     service httpd start  
+        #     echo "<html><body><h1>Pernell Whittaker is one of my favorite boxers. This message is provided to you by Region ${AWS::Region}<h1></body></html>" > /var/www/html/index.html
+        Fn::Base64: !Sub |
+          #!/bin/bash
+
+          URL="password"
+
+          sudo apt-get update -y
+          sudo apt-get upgrade -y
+          sudo apt-get install expect -y
+          sudo apt install mysql-server -y      
+
+          sudo tee /root/mysql_config.sh > /dev/null <<EOF
+          #!/bin/bash
+          SECURE_MYSQL=\$(expect -c "
+
+          spawn sudo mysql
+
+          send \"ALTER USER 'root'@'localhost' IDENTIFIED with caching_sha2_password by '$URL';\r\"
+          send \"GRANT ALL ON *.* to 'root'@'localhost';\r\"
+          send \"CREATE USER 'admin'@'%' IDENTIFIED WITH caching_sha2_password BY '$URL';\r\"
+          send \"GRANT ALL ON *.* to 'admin'@'%';\r\"
+          send \"CREATE USER 'replica_user'@'%' IDENTIFIED WITH 'mysql_native_password' BY 'password_replica';\r\"
+          send \"GRANT REPLICATION SLAVE ON *.* TO 'replica_user'@'%';\r\"
+          
+          send \"FLUSH PRIVILEGES;\r\"
+          send \"EXIT;\r\"
+
+          expect eof
+          ")
+
+          echo "\$SECURE_MYSQL"
+          
+          EOF
+
+          sudo chmod 777 /root/mysql_config.sh
+          # sudo bash /root/mysql_config.sh > /root/mysql_config.txt
+          sudo bash /root/mysql_config.sh
+
+          sudo tee /root/mysql_installation.sh > /dev/null <<EOF
+          #!/bin/bash
+
+          SECURE_MYSQL=\$(expect -c "
+
+          spawn sudo mysql_secure_installation -p$URL
+
+          send \"n\r\"
+          send \"n\r\"
+          send \"y\r\"
+          send \"n\r\"
+          send \"n\r\"
+          send \"y\r\"
+
+          expect eof
+          ")
+
+          echo "\$SECURE_MYSQL"
+          
+          EOF
+        
+          sudo chmod 777 /root/mysql_installation.sh
+          #sudo bash /root/mysql_installation.sh > /root/mysql_installation.txt
+          sudo bash /root/mysql_installation.sh
+
+          sudo sed -i '/^bind-address/s/127\.0\.0\.1/0.0.0.0/' /etc/mysql/mysql.conf.d/mysqld.cnf
+          sudo find /etc/mysql/mysql.conf.d/ -name "mysqld.cnf" -exec sed -i 's/^# server-id.*/server-id = 1/' {} \;
+          sudo find /etc/mysql/mysql.conf.d/ -name "mysqld.cnf" -exec sed -i '/^# log_bin/c\log_bin = /var/log/mysql/mysql-bin.log\nlog_bin_index = /var/log/mysql/mysql-bin.log.index\nrelay_log = /var/log/mysql/mysql-relay-bin\nrelay_log_index = /var/log/mysql/mysql-relay-bin.index\ngtid_mode=ON\nenforce_gtid_consistency=ON\nbinlog-format=ROW' {} \;
+
+          echo '''#[client]
+          #default-character-set=utf8mb4
+
+          #[mysql]
+          #default-character-set=utf8mb4
+
+          [mysqld]
+          port = 3301
+          #sql_mode = ""
+          sql_mode=NO_ZERO_IN_DATE,NO_ZERO_DATE,NO_ENGINE_SUBSTITUTION
+          character-set-server=utf8mb4
+          collation-server=utf8mb4_general_ci
+          init-connect='SET NAMES utf8mb4'
+          init_connect='SET collation_connection = utf8mb4_general_ci'
+          skip-character-set-client-handshake
+          default_time_zone = '+00:00'
+          secure-file-priv = ""
+          bind-address = 0.0.0.0
+
+          [mysqldump]
+          max_allowed_packet=16M
+          ''' | sudo tee -a /etc/mysql/my.cnf
+
+          sudo systemctl restart mysql
+
+          # sudo mkdir -p /var/backups/app
+          # sudo chmod 700 /var/backups/app
+
+          # sudo tee /home/ubuntu/app-backup.sh > /dev/null <<EOF
+          # #!/bin/bash
+          # backup_dir="/var/backups/app"
+          # backup_file="\$backup_dir/app-db_\$(date +"%Y_%m_%d_%H_%M_%S").sql"
+          # mysqldump -h 127.0.0.1 -P 3301 -u admin -p\$URL --databases app > "\$backup_file"
+          # cd "\$backup_dir"
+          # ls -t | tail -n +11 | xargs rm --
+          # EOF
+
+          # sudo chmod 700 /home/ubuntu/app-backup.sh
+
+          # sudo tee /etc/systemd/system/app-backup.service > /dev/null <<EOF
+          # [Unit]
+          # Description=Create app Backup
+
+          # [Service]
+          # Type=simple
+          # ExecStart=/bin/bash /home/ubuntu/app-backup.sh
+          # EOF
+
+          # sudo tee /etc/systemd/system/app-backup.timer > /dev/null <<EOF
+          # [Unit]
+          # Description=Run Create app Backup every minute
+
+          # [Timer]
+          # OnCalendar=*:0/1
+
+          # [Install]
+          # WantedBy=timers.target
+          # EOF
+
+          # sudo systemctl daemon-reload
+          # sudo systemctl enable app-backup.timer
+          # sudo systemctl start app-backup.timer
+    #   Volumes: 
+    #     - Volume
+
+  EC2InstanceDBSlave:
+    Type: AWS::EC2::Instance
+    DependsOn: EC2Instance
+    Properties: 
+    #   AdditionalInfo: String
+    #   Affinity: String
+      # AvailabilityZone: !Select [1, !GetAZs  '']
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs: 
+            DeleteOnTermination: false
+            # Encrypted: true
+            # Iops: 32000
+            # KmsKeyId: String
+            # SnapshotId: String
+            VolumeSize: 20
+            VolumeType: gp3
+            # VolumeType: io1
+          # NoDevice: Json
+          # VirtualName: String
+    #   CpuOptions: 
+    #     CpuOptions
+    #   CreditSpecification: 
+    #     CreditSpecification
+    #   DisableApiTermination: Boolean
+      # EbsOptimized: true
+    #   ElasticGpuSpecifications: 
+    #     - ElasticGpuSpecification
+    #   ElasticInferenceAccelerators: 
+    #     - ElasticInferenceAccelerator
+    #   EnclaveOptions: 
+    #     EnclaveOptions
+    #   HibernationOptions: 
+    #     HibernationOptions
+    #   HostId: String
+    #   HostResourceGroupArn: String
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", AMI]
+    #   InstanceInitiatedShutdownBehavior: String
+      InstanceType: t3.micro
+    #   Ipv6AddressCount: Integer
+    #   Ipv6Addresses: 
+    #     - InstanceIpv6Address
+    #   KernelId: String
+      KeyName: !Ref KeyName
+    #   LaunchTemplate: 
+    #     LaunchTemplateSpecification
+    #   LicenseSpecifications: 
+    #     - LicenseSpecification
+    #   Monitoring: Boolean
+    #   NetworkInterfaces: 
+    #     - NetworkInterface
+    #   PlacementGroupName: String
+    #   PrivateDnsNameOptions: 
+    #     PrivateDnsNameOptions
+    #   PrivateIpAddress: String
+    #   PropagateTagsToVolumeOnCreation: Boolean
+    #   RamdiskId: String
+      SecurityGroupIds: 
+        - !Ref MySecurityGroupDB
+        # - !Ref MySecurityGroup
+    #   SecurityGroups: 
+    #     - String
+    #   SourceDestCheck: Boolean
+    #   SsmAssociations: 
+    #     - SsmAssociation
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+       - Key: Name
+         Value: app-db-slave     
+    #   Tenancy: String
+      UserData:
+        # Fn::Base64: !Sub |
+        #     #!/bin/bash
+        #     yum install httpd -y
+        #     service httpd start  
+        #     echo "<html><body><h1>Pernell Whittaker is one of my favorite boxers. This message is provided to you by Region ${AWS::Region}<h1></body></html>" > /var/www/html/index.html
+        Fn::Base64: !Sub |
+          #!/bin/bash
+
+          URL="password"
+
+          sudo apt-get update -y
+          sudo apt-get upgrade -y
+          sudo apt-get install expect -y
+          sudo apt install mysql-server -y
+          sudo apt install awscli -y
+
+          INSTANCE_ID_1="${EC2Instance}"
+          REGION="eu-central-1"
+
+          INSTANCE_DNS=$(aws ec2 describe-instances \
+            --instance-ids $INSTANCE_ID_1 \
+            --query "Reservations[0].Instances[0].PublicDnsName" \
+            --region $REGION \
+            --output text) 
+          
+          sudo echo "The DNS of EC2 Instance 1 is: $INSTANCE_DNS" > /home/ubuntu/instance_dns.txt
+
+          sudo tee /root/mysql_config.sh > /dev/null <<EOF
+          #!/bin/bash   
+
+          SECURE_MYSQL=\$(expect -c "
+
+          spawn sudo mysql
+
+          send \"ALTER USER 'root'@'localhost' IDENTIFIED with caching_sha2_password by '$URL';\r\"
+          send \"GRANT ALL ON *.* to 'root'@'localhost';\r\"
+          send \"CREATE USER 'admin'@'%' IDENTIFIED WITH caching_sha2_password BY '$URL';\r\"
+          send \"GRANT ALL ON *.* to 'admin'@'%';\r\"
+
+          # send \"CHANGE MASTER TO MASTER_HOST='$INSTANCE_DNS',MASTER_PORT=3301,MASTER_USER='replica_user',MASTER_PASSWORD='password_replica';\r\"
+          # send \"CHANGE MASTER TO MASTER_LOG_FILE='mysql-bin.000001',MASTER_LOG_POS=157;\r\"
+          # send \"CHANGE MASTER TO MASTER_AUTO_POSITION=1;\r\"
+          # send \"START SLAVE;\r\"
+          
+          send \"FLUSH PRIVILEGES;\r\"
+          send \"EXIT;\r\"
+
+          expect eof
+          ")
+
+          echo "\$SECURE_MYSQL"
+          
+          EOF
+
+          sudo chmod 777 /root/mysql_config.sh
+          # sudo bash /root/mysql_config.sh > /root/mysql_config.txt
+          sudo bash /root/mysql_config.sh
+
+          sudo tee /root/mysql_installation.sh > /dev/null <<EOF
+          #!/bin/bash
+
+          SECURE_MYSQL=\$(expect -c "
+
+          spawn sudo mysql_secure_installation -p$URL
+
+          send \"n\r\"
+          send \"n\r\"
+          send \"y\r\"
+          send \"n\r\"
+          send \"n\r\"
+          send \"y\r\"
+
+          expect eof
+          ")
+
+          echo "\$SECURE_MYSQL"
+          
+          EOF
+        
+          sudo chmod 777 /root/mysql_installation.sh
+          #sudo bash /root/mysql_installation.sh > /root/mysql_installation.txt
+          sudo bash /root/mysql_installation.sh
+
+          sudo sed -i '/^bind-address/s/127\.0\.0\.1/0.0.0.0/' /etc/mysql/mysql.conf.d/mysqld.cnf
+          sudo find /etc/mysql/mysql.conf.d/ -name "mysqld.cnf" -exec sed -i 's/^# server-id.*/server-id = 2/' {} \;
+          sudo find /etc/mysql/mysql.conf.d/ -name "mysqld.cnf" -exec sed -i '/^# log_bin/c\log_bin = /var/log/mysql/mysql-bin.log\nlog_bin_index = /var/log/mysql/mysql-bin.log.index\nrelay_log = /var/log/mysql/mysql-relay-bin\nrelay_log_index = /var/log/mysql/mysql-relay-bin.index\ngtid_mode=ON\nenforce_gtid_consistency=ON\nbinlog-format=ROW' {} \;
+
+          echo '''#[client]
+          #default-character-set=utf8mb4
+
+          #[mysql]
+          #default-character-set=utf8mb4
+
+          [mysqld]
+          port = 3301
+          #sql_mode = ""
+          sql_mode=NO_ZERO_IN_DATE,NO_ZERO_DATE,NO_ENGINE_SUBSTITUTION
+          character-set-server=utf8mb4
+          collation-server=utf8mb4_general_ci
+          init-connect='SET NAMES utf8mb4'
+          init_connect='SET collation_connection = utf8mb4_general_ci'
+          skip-character-set-client-handshake
+          default_time_zone = '+00:00'
+          secure-file-priv = ""
+          bind-address = 0.0.0.0
+
+          [mysqldump]
+          max_allowed_packet=16M
+          ''' | sudo tee -a /etc/mysql/my.cnf
+
+          sudo systemctl restart mysql  
+    #   Volumes: 
+    #     - Volume
+
+  # IAM Role per EC2
+  EC2InstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Roles:
+        - !Ref EC2Role
+
+  EC2Role:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 'ec2.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'EC2DescribeInstancesPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'ec2:DescribeInstances'
+                Resource: '*'
+
+  # EC2Instance2:
+  #   Type: AWS::EC2::Instance
+  #   # DependsOn:
+  #   Properties: 
+  #   #   AdditionalInfo: String
+  #   #   Affinity: String
+  #   #   AvailabilityZone: String
+  #   #   BlockDeviceMappings: 
+  #   #     - BlockDeviceMapping
+  #   #   CpuOptions: 
+  #   #     CpuOptions
+  #   #   CreditSpecification: 
+  #   #     CreditSpecification
+  #   #   DisableApiTermination: Boolean
+  #   #   EbsOptimized: Boolean
+  #   #   ElasticGpuSpecifications: 
+  #   #     - ElasticGpuSpecification
+  #   #   ElasticInferenceAccelerators: 
+  #   #     - ElasticInferenceAccelerator
+  #   #   EnclaveOptions: 
+  #   #     EnclaveOptions
+  #   #   HibernationOptions: 
+  #   #     HibernationOptions
+  #   #   HostId: String
+  #   #   HostResourceGroupArn: String
+  #   #   IamInstanceProfile: String
+  #     ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", AMI]
+  #   #   InstanceInitiatedShutdownBehavior: String
+  #     InstanceType: t2.micro
+  #   #   Ipv6AddressCount: Integer
+  #   #   Ipv6Addresses: 
+  #   #     - InstanceIpv6Address
+  #   #   KernelId: String
+  #     KeyName: !Ref KeyName
+  #   #   LaunchTemplate: 
+  #   #     LaunchTemplateSpecification
+  #   #   LicenseSpecifications: 
+  #   #     - LicenseSpecification
+  #   #   Monitoring: Boolean
+  #   #   NetworkInterfaces: 
+  #   #     - NetworkInterface
+  #   #   PlacementGroupName: String
+  #   #   PrivateDnsNameOptions: 
+  #   #     PrivateDnsNameOptions
+  #   #   PrivateIpAddress: String
+  #   #   PropagateTagsToVolumeOnCreation: Boolean
+  #   #   RamdiskId: String
+  #     SecurityGroupIds: 
+  #       - !Ref MySecurityGroup
+  #   #   SecurityGroups: 
+  #   #     - String
+  #   #   SourceDestCheck: Boolean
+  #   #   SsmAssociations: 
+  #   #     - SsmAssociation
+  #     SubnetId: !Ref PublicSubnet1
+  #     Tags:
+  #      - Key: Name
+  #        Value: LUIT CF Project EC2     
+  #   #   Tenancy: String
+  #     UserData:
+  #       # Fn::Base64: !Sub |
+  #       #     #!/bin/bash
+  #       #     yum install httpd -y
+  #       #     service httpd start  
+  #       #     echo "<html><body><h1>Pernell Whittaker is one of my favorite boxers. This message is provided to you by Region ${AWS::Region}<h1></body></html>" > /var/www/html/index.html
+  #       Fn::Base64: !Sub |
+  #         #!/bin/bash
+  #         sudo su
+  #         sudo apt-get update -y
+  #         sudo apt-get upgrade -y
+  #         sudo apt install nginx -y
+  #         sudo mkdir -m 777 -p /var/www/html
+  #         echo "<html><body><h1>Pernell Whittaker is one of my favorite boxers. This message is provided to you by Region ${AWS::Region}<h1></body></html>" > /var/www/html/index.html
+  #         cd /etc/nginx/sites-available
+  #         sudo bash -c 'echo "server {
+  #           listen 80;
+  #           listen [::]:80;
+  #           server_name nexyra.com www.nexyra.com;
+  #           # root /home/ubuntu/nexyra.com;
+  #           root /var/www/html;
+  #           index index.html index.htm index.nginx-debian.html;
+  #           # try_files $uri $uri/ =404;
+  #         }" > nexyra.com'
+  #         sudo ln -s /etc/nginx/sites-available/nexyra.com /etc/nginx/sites-enabled/
+  #         sudo systemctl restart nginx
+  #   #   Volumes: 
+  #   #     - Volume
+  
+  MyTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    # DependsOn:
+    Properties: 
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 60
+      HealthCheckPath: "/"
+      HealthCheckPort: 80
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 5
+      # IpAddressType: String
+      Matcher:
+        HttpCode: 200,301
+      # Name: MyTargetGroup
+      Port: 80
+      Protocol: HTTP
+      # ProtocolVersion: String
+      # Tags: 
+      #   - Tag
+      TargetGroupAttributes: 
+        - Key: "target_group_health.unhealthy_state_routing.minimum_healthy_targets.count"
+          Value: "1"
+        - Key: "stickiness.enabled"
+          Value: "true"
+        - Key: "target_group_health.unhealthy_state_routing.minimum_healthy_targets.percentage"
+          Value: "off"
+        - Key: "deregistration_delay.timeout_seconds"
+          Value: "300"
+        - Key: "target_group_health.dns_failover.minimum_healthy_targets.count"
+          Value: "1"
+        # - Key: "stickiness.app_cookie.cookie_name"
+        #   Value: "app-app-cookie"
+        - Key: "stickiness.type"
+          # Value: "app_cookie"
+          Value: "lb_cookie"
+          # Value: "source_ip_dest_ip_proto"
+        # - Key: "stickiness.app_cookie.duration_seconds"
+        #   Value: "86400"
+        - Key: "slow_start.duration_seconds"
+          Value: "0"
+        # - Key: "stickiness.app_cookie.duration_seconds"
+        #   Value: "86400"
+        - Key: "stickiness.lb_cookie.duration_seconds"
+          Value: "86400"
+        - Key: "target_group_health.dns_failover.minimum_healthy_targets.percentage"
+          Value: "off"
+        - Key: "load_balancing.cross_zone.enabled"
+          Value: "use_load_balancer_configuration"
+        - Key: "load_balancing.algorithm.type"
+          Value: "round_robin"
+      # Targets:
+      #   - Id: !Ref EC2Instance
+      #     Port: 80
+      #   - Id: !Ref EC2Instance2
+      #     Port: 80
+      TargetType: instance
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref VPC
+
+  MyLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    # DependsOn:
+    Properties: 
+      IpAddressType: ipv4
+      LoadBalancerAttributes: 
+        # - Key: "access_logs.s3.enabled"
+        #   Value: "true"
+        # - Key: "access_logs.s3.bucket"
+        #   Value: !Sub "${RDSDBInstance2}-logs"
+        - Key: "idle_timeout.timeout_seconds"
+          Value: "60"
+        - Key: "deletion_protection.enabled"
+          Value: "false"
+        - Key: "routing.http2.enabled"
+          Value: "true"
+        - Key: "routing.http.drop_invalid_header_fields.enabled"
+          Value: "false"
+        - Key: "routing.http.xff_client_port.enabled"
+          Value: "false"
+        - Key: "routing.http.preserve_host_header.enabled"
+          Value: "false"
+        - Key: "routing.http.xff_header_processing.mode"
+          Value: "append"
+        - Key: "load_balancing.cross_zone.enabled"
+          Value: "true"
+        - Key: "routing.http.desync_mitigation_mode"
+          Value: "defensive"
+        - Key: "waf.fail_open.enabled"
+          Value: "false"
+        - Key: "routing.http.x_amzn_tls_version_and_cipher_suite.enabled"
+          Value: "false"
+      Name: app-lb
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref MySecurityGroup
+      # SubnetMappings: 
+      #   - SubnetMapping
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      # Tags: 
+      #   - Tag
+      Type: application
+
+  # MyLaunchConfiguration:
+  #   Type: AWS::AutoScaling::LaunchConfiguration
+  #   # DependsOn:
+  #   Properties: 
+  #     # AssociatePublicIpAddress: Boolean
+  #     # BlockDeviceMappings: 
+  #     #   - BlockDeviceMapping
+  #     # ClassicLinkVPCId: String
+  #     # ClassicLinkVPCSecurityGroups: 
+  #     #   - String
+  #     # EbsOptimized: Boolean
+  #     # IamInstanceProfile: String
+  #     ImageId: ami-09cd747c78a9add63
+  #     # ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", AMI]
+  #     # InstanceId: String
+  #     # InstanceMonitoring: Boolean
+  #     InstanceType: t2.micro
+  #     # KernelId: String
+  #     KeyName: !Ref KeyName
+  #     # LaunchConfigurationName: String
+  #     # MetadataOptions: 
+  #     #   MetadataOptions
+  #     # PlacementTenancy: String
+  #     # RamDiskId: String
+  #     SecurityGroups:
+  #       - !Ref MySecurityGroup
+  #     # SpotPrice: String
+  #     UserData:
+  #       Fn::Base64: !Sub |
+  #         #!/bin/bash
+          
+  #         sudo apt update -y
+  #         sudo apt install ruby-full -y
+  #         sudo apt install wget
+  #         cd /home/ubuntu
+  #         wget https://aws-codedeploy-eu-central-1.s3.eu-central-1.amazonaws.com/latest/install
+  #         chmod +x ./install
+  #         sudo ./install auto > /tmp/logfile
+
+  MyNetworkInterface:
+    Type: "AWS::EC2::NetworkInterface"
+    # DependsOn:
+    Properties:
+      Description: "My network interface"
+      GroupSet:
+        - !Ref MySecurityGroup
+      SubnetId: !Ref PublicSubnet1
+
+  MyLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    # DependsOn:
+    Properties: 
+      LaunchTemplateData:
+        # BlockDeviceMappings: 
+        #   - BlockDeviceMapping
+        # CapacityReservationSpecification: 
+        #   CapacityReservationSpecification
+        # CpuOptions: 
+        #   CpuOptions
+        # CreditSpecification: 
+        #   CreditSpecification
+        # DisableApiStop: Boolean
+        # DisableApiTermination: Boolean
+        # EbsOptimized: Boolean
+        # ElasticGpuSpecifications: 
+        #   - ElasticGpuSpecification
+        # ElasticInferenceAccelerators: 
+        #   - LaunchTemplateElasticInferenceAccelerator
+        # EnclaveOptions: 
+        #   EnclaveOptions
+        # HibernationOptions: 
+        #   HibernationOptions
+        IamInstanceProfile: 
+          Arn: /*arn:aws:iam::*/
+        ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", AMI]
+        # ImageId: ami-09cd747c78a9add63
+        # InstanceInitiatedShutdownBehavior: String
+        # InstanceMarketOptions: 
+        #   InstanceMarketOptions
+        # InstanceRequirements: 
+        #   InstanceRequirements
+        InstanceType: t3.medium
+        # KernelId: String
+        KeyName: !Ref KeyName
+        # LicenseSpecifications: 
+        #   - LicenseSpecification
+        # MaintenanceOptions: 
+        #   MaintenanceOptions
+        # MetadataOptions: 
+        #   MetadataOptions
+        # Monitoring: 
+        #   Monitoring
+        NetworkInterfaces: 
+          - DeviceIndex: 0
+            Groups: 
+              # - !Ref MyNetworkInterface
+              - !Ref MySecurityGroup
+        # Placement: 
+        #   Placement
+        # PrivateDnsNameOptions: 
+        #   PrivateDnsNameOptions
+        # RamDiskId: String
+        # SecurityGroupIds: 
+        #   - !Ref MySecurityGroup
+        # SecurityGroups: 
+        #   - String
+        # TagSpecifications: 
+        #   - ResourceType: String
+        #     Tags: 
+        #       - Tag
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            # set -e
+
+            sudo apt update -y
+            sudo apt upgrade -y
+
+            sudo chmod +x /home
+            sudo chmod +x /home/ubuntu
+            # sudo mkdir /home/ubuntu/app-server
+            # sudo mkdir /home/ubuntu/app-reservation-api
+            # sudo mkdir /home/ubuntu/app-reservation-app
+            sudo mkdir /home/ubuntu/app-api
+            sudo mkdir /home/ubuntu/app-app
+            # sudo chmod -R 777 app-server
+            # sudo chmod -R 777 app-reservation-api
+            # sudo chmod -R 777 app-reservation-app
+            sudo chmod -R 777 app-api
+            sudo chmod -R 777 app-app
+
+            curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+            sudo apt install -y nodejs
+
+            sudo apt install -y wget curl unzip zip
+
+            sudo apt install nginx -y
+            sudo chmod 755 /var/log/nginx
+            sudo chmod 644 /var/log/nginx/access.log
+            sudo chmod 644 /var/log/nginx/error.log
+            sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup
+            
+            sudo tee /etc/nginx/nginx.conf >/dev/null <<'EOF'
+            # Nuova configurazione di Nginx
+            user www-data;
+            worker_processes auto;
+            pid /run/nginx.pid;
+            include /etc/nginx/modules-enabled/*.conf;
+
+            events {
+                    worker_connections 768;
+                    # multi_accept on;
+            }
+
+            http {
+
+                    ##
+                    # Basic Settings
+                    ##
+
+                    sendfile on;
+                    tcp_nopush on;
+                    types_hash_max_size 2048;
+                    server_tokens off;
+                    server_name_in_redirect off;
+                    add_header X-Custom-Header "Valore del mio header";
+                    proxy_hide_header Server;
+                    client_max_body_size 10M;
+                    # server_names_hash_bucket_size 64;
+                    # server_name_in_redirect off;
+
+                    include /etc/nginx/mime.types;
+                    default_type application/octet-stream;
+
+                    ##
+                    # SSL Settings
+                    ##
+
+                    ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3; # Dropping SSLv3, ref: POODLE
+                    ssl_prefer_server_ciphers on;
+
+                    ##
+                    # Logging Settings
+                    ##
+
+                    map $host $subdomain {
+                            ~^(?<sub>.+)\..+$ $sub;
+                    }
+
+                    # log_format main '$remote_addr - $remote_user [$time_local] ' '"$request" $status $body_bytes_sent ' '"$http_referer" "$http_user_agent" "$server_name"';
+                    # log_format main '[$time_local] $http_x_forwarded_for - $status $remote_user "$request" $body_bytes_sent "$http_user_agent" "$scheme" "$subdomain" "$server_name"';
+                    # log_format main '[$time_local] $http_x_forwarded_for - $status $remote_user $request_method "$request_uri" $body_bytes_sent "$server_protocol" "$http_referer" "$http_user_agent" "$scheme" "$subdomain" "$server_name"';
+                    # log_format main '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"';      
+                    # log_format main '$remote_addr - $remote_user [$time_local] '
+                    #       '"$request" $status $body_bytes_sent '
+                    #       '"$http_referer" "$http_user_agent" '
+                    #       '"$http_x_forwarded_for" "$upstream_addr" '
+                    #       '"$upstream_cache_status" '
+                    #       '$request_time $upstream_response_time '
+                    #       '$request_length $bytes_sent '
+                    #       '"$gzip_ratio" $upstream_status '
+                    #       '"$host" "$uri" "$args" '
+                    #       '"$server_protocol" "$ssl_protocol" '
+                    #       '"$ssl_cipher" "$request_id" '
+                    #       '$connection $connection_requests '
+                    #       '$scheme $upstream_header_time '
+                    #       '$upstream_connect_time ';     
+                    log_format main '[$time_local] "$request_id" '
+                          '"$http_x_forwarded_proto://$host" "$request" $status '
+                          '"$http_x_forwarded_for" '
+                          '"$http_user_agent" '
+                          '$request_length $body_bytes_sent ';
+                    access_log /var/log/nginx/access.log main;
+                    error_log /var/log/nginx/error.log;
+
+                    ##
+                    # Gzip Settings
+                    ##
+
+                    gzip on;
+
+                    # gzip_vary on;
+                    # gzip_proxied any;
+                    # gzip_comp_level 6;
+                    # gzip_buffers 16 8k;
+                    # gzip_http_version 1.1;
+                    # gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+                    ##
+                    # Virtual Host Configs
+                    ##
+
+                    include /etc/nginx/conf.d/*.conf;
+                    include /etc/nginx/sites-enabled/*;
+            }
+
+
+            #mail {
+            #       # See sample authentication script at:
+            #       # http://wiki.nginx.org/ImapAuthenticateWithApachePhpScript
+            #
+            #       # auth_http localhost/auth.php;
+            #       # pop3_capabilities "TOP" "USER";
+            #       # imap_capabilities "IMAP4rev1" "UIDPLUS";
+            #
+            #       server {
+            #               listen     localhost:110;
+            #               protocol   pop3;
+            #               proxy      on;
+            #       }
+            #
+            #       server {
+            #               listen     localhost:143;
+            #               protocol   imap;
+            #               proxy      on;
+            #       }
+            #}
+            EOF
+
+            sudo systemctl reload nginx
+            # sudo nginx -s reload
+            # sudo systemctl restart nginx
+
+
+            sudo apt-add-repository ppa:redislabs/redis
+            echo -ne '\n'
+            sudo apt-get install redis-server -y
+
+            sudo npm i pm2 -g
+
+            sudo apt install ruby-full -y
+            cd /home/ubuntu
+            wget https://aws-codedeploy-eu-central-1.s3.eu-central-1.amazonaws.com/latest/install
+            chmod +x ./install
+            sudo ./install auto > /tmp/logfile
+            
+            sudo apt-get install expect -y
+
+            cd /home/ubuntu
+            wget https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb
+            sudo dpkg -i -E ./amazon-cloudwatch-agent.deb
+            cat << EOF > /home/ubuntu/amazon-cloudwatch-agent.json
+            {
+              "agent": {
+                "metrics_collection_interval": 60,
+                "run_as_user": "root"
+              },
+              "logs": {
+                "logs_collected": {
+                  "files": {
+                    "collect_list": [
+                      {
+                        "file_path": "/var/log/nginx/access.log",
+                        "log_group_name": "app-ec2-nginx-access-log",
+                        "log_stream_name": "{instance_id}"
+                      },
+                      {
+                        "file_path": "/var/log/nginx/error.log",
+                        "log_group_name": "app-ec2-nginx-error-log",
+                        "log_stream_name": "{instance_id}"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+            EOF
+
+            sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/home/ubuntu/amazon-cloudwatch-agent.json -s
+
+            # sudo chmod +x amazon-cloudwatch-agent-config-wizard.sh
+            # sudo bash amazon-cloudwatch-agent-config-wizard.sh > amazon-cloudwatch-agent-config-wizard.txt
+
+            # sudo apt-get update -y
+            sudo apt-get install collectd -y
+            # sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/bin/config.json -s
+            # sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a status
+
+      LaunchTemplateName: app-lt
+      # TagSpecifications: 
+      #   - LaunchTemplateTagSpecification
+      # VersionDescription: String
+
+  AutoScalingScalingPolicy:
+    Type: "AWS::AutoScaling::ScalingPolicy"
+    # DependsOn:
+    Properties:
+      AutoScalingGroupName: !Ref MyAutoScalingGroup
+      PolicyType: "TargetTrackingScaling"
+      TargetTrackingConfiguration: 
+        PredefinedMetricSpecification: 
+          PredefinedMetricType: "ASGAverageCPUUtilization"
+        TargetValue: 50
+        DisableScaleIn: false
+
+  MyAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    # DependsOn:
+    Properties: 
+      AutoScalingGroupName: app-as
+      AvailabilityZones:
+        - "eu-central-1a"
+        - "eu-central-1b"
+        # - "eu-south-1a"
+        # - "eu-south-1b"
+        # - "us-east-1a"
+        # - "us-east-1b"
+    #   CapacityRebalance: Boolean
+    #   Context: String
+      Cooldown: 300
+    #   DefaultInstanceWarmup: Integer
+      DesiredCapacity: 2
+    #   DesiredCapacityType: String
+      HealthCheckGracePeriod: 300
+      HealthCheckType: "EC2"
+      # InstanceId: !Ref EC2Instance
+      # LaunchConfigurationName: !Ref MyLaunchConfiguration
+      LaunchTemplate: 
+        LaunchTemplateId: !Ref MyLaunchTemplate
+        # LaunchTemplateName: "code-pipeline-template"
+        Version: "1"
+    #   LifecycleHookSpecificationList: 
+    #     - LifecycleHookSpecification
+    #   LoadBalancerNames: 
+    #     - String
+    #   MaxInstanceLifetime: Integer
+      MaxSize: 2    
+    #   MetricsCollection: 
+    #     - MetricsCollection
+      MinSize: 2
+    #   MixedInstancesPolicy: 
+    #     MixedInstancesPolicy
+    #   NewInstancesProtectedFromScaleIn: Boolean
+    #   NotificationConfigurations: 
+    #     - NotificationConfiguration
+    #   PlacementGroup: String
+    #   ServiceLinkedRoleARN: String
+      Tags: 
+        - Key: Name
+          PropagateAtLaunch: true
+          Value: app-ec2
+      TargetGroupARNs:
+        - !Ref MyTargetGroup
+    #   TerminationPolicies: 
+    #     - String
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+
+  ALBListenerNoSslCertificate:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    # DependsOn:
+    Properties:
+      # AlpnPolicy: 
+      #   - String
+      DefaultActions:
+        - RedirectConfig:
+            Host: '#{host}'
+            Path: '/#{path}'
+            Port: '443'
+            Protocol: HTTPS
+            StatusCode: HTTP_301
+          Type: redirect 
+      LoadBalancerArn: !Ref MyLoadBalancer
+      Port: 80
+      Protocol: HTTP 
+      # SslPolicy: String
+
+  # Da attivare solo se c'è il certificato SSL, altrimenti crasha 
+  ALBListenerSslCertificate:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    # DependsOn:
+    Properties: 
+      # AlpnPolicy: 
+      #   - String
+      Certificates:
+        # - CertificateArn: !Ref AcmCertificate
+        - CertificateArn: /*arn:aws:acm:*/
+      DefaultActions:
+        - Type: forward 
+          TargetGroupArn: !Ref MyTargetGroup
+          # TargetGroupStickinessConfig:
+          #   Enabled: true
+          #   DurationSeconds: 86400  # Durata massima di 7 giorni
+      LoadBalancerArn: !Ref MyLoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      # SslPolicy: String
+
+  ALBListenerRuleRedirect:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref ALBListenerSslCertificate
+      Priority: 1 # Assicurati che questa regola venga eseguita prima delle altre
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values:
+              - "app.com" # Cattura le richieste senza "www"
+      Actions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Host: "www.app.com"
+            Port: "443"
+            StatusCode: HTTP_301
+
+  # MyRDSSubnetGroup:
+  #   Type: AWS::RDS::DBSubnetGroup
+  #   # DependsOn:
+  #   Properties:
+  #     DBSubnetGroupDescription: Subnet group for RDS database
+  #     # DBSubnetGroupName: String
+  #     SubnetIds: 
+  #       - !Ref PublicSubnet1
+  #       - !Ref PublicSubnet2
+  #     Tags:
+  #       - Key: Name
+  #         Value: database subnets
+
+  # MyRDS:
+  #   Type: AWS::RDS::DBInstance
+  #   # DependsOn:
+  #   Properties: 
+  #     AllocatedStorage: 20 # !Ref DatabaseAllocatedStorage
+  #   #   AllowMajorVersionUpgrade: Boolean
+  #   #   AssociatedRoles: 
+  #   #     - DBInstanceRole
+  #     AutoMinorVersionUpgrade: true
+  #     AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+  #     BackupRetentionPeriod: 0 # !Ref DatabaseBackupRetentionPeriod
+  #   #   CACertificateIdentifier: String
+  #   #   CertificateDetails: 
+  #   #     CertificateDetails
+  #   #   CertificateRotationRestart: Boolean
+  #   #   CharacterSetName: String
+  #   #   CopyTagsToSnapshot: Boolean
+  #   #   CustomIAMInstanceProfile: String
+  #   #   DBClusterIdentifier: String
+  #   #   DBClusterSnapshotIdentifier: String
+  #     DBInstanceClass: db.t3.micro # !Ref DatabaseInstanceClass
+  #     DBInstanceIdentifier: app-rds # !Ref DatabaseInstanceIdentifier
+  #     DBName: dbname # !Ref DatabaseName
+  #   #   DBSecurityGroups: 
+  #   #     - String
+  #   #   DBSnapshotIdentifier: String
+  #   #   DBSubnetGroupName: !Ref MyRDSSubnetGroup
+  #   #   DeleteAutomatedBackups: Boolean
+  #   #   DeletionProtection: Boolean
+  #   #   Domain: String
+  #   #   DomainIAMRoleName: String
+  #     EnableCloudwatchLogsExports: 
+  #       - "audit"
+  #       - "error"
+  #       - "general"
+  #       - "slowquery"
+  #   #   EnableIAMDatabaseAuthentication: Boolean
+  #   #   EnablePerformanceInsights: Boolean
+  #   #   Endpoint: 
+  #   #     Endpoint
+  #     Engine: MySQL
+  #     EngineVersion: 8.0.32
+  #   #   Iops: Integer
+  #   #   KmsKeyId: String
+  #   #   LicenseModel: String
+  #   #   ManageMasterUserPassword: Boolean
+  #     MasterUsername: admin # !Ref DatabaseUser
+  #     MasterUserPassword: Yk0oPlJnmW5#sKmqSl23Asac8#SdfcxZzl$lo # !Ref DatabasePassword
+  #   #   MasterUserSecret: 
+  #   #     MasterUserSecret
+  #   #   MaxAllocatedStorage: Integer
+  #   #   MonitoringInterval: Integer
+  #   #   MonitoringRoleArn: String
+  #     MultiAZ: false # !Ref MultiAZDatabase
+  #   #   NcharCharacterSetName: String
+  #   #   NetworkType: String
+  #   #   OptionGroupName: String
+  #   #   PerformanceInsightsKMSKeyId: String
+  #   #   PerformanceInsightsRetentionPeriod: Integer
+  #   #   Port: String
+  #   #   PreferredBackupWindow: String
+  #   #   PreferredMaintenanceWindow: String
+  #   #   ProcessorFeatures: 
+  #   #     - ProcessorFeature
+  #   #   PromotionTier: Integer
+  #     PubliclyAccessible: true
+  #   #   ReplicaMode: String
+  #   #   RestoreTime: String
+  #   #   SourceDBInstanceAutomatedBackupsArn: String
+  #   #   SourceDBInstanceIdentifier: String
+  #   #   SourceDbiResourceId: String
+  #   #   SourceRegion: String
+  #   #   StorageEncrypted: Boolean
+  #   #   StorageThroughput: Integer
+  #   #   StorageType: String
+  #   #   Tags: 
+  #   #     - Tag
+  #   #   Timezone: String
+  #   #   UseDefaultProcessorFeatures: Boolean
+  #   #   UseLatestRestorableTime: Boolean
+  #     # VPCSecurityGroups:
+  #     #   - Fn::ImportValue: !Sub ${ExportVpcStackName}-DataBaseSecurityGroup
+
+  MyCodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    # DependsOn:
+    Properties: 
+      ApplicationName: app-server-cd
+      # ComputePlatform: Server
+      # Tags: 
+      #   - Tag
+
+  # MyDeploymentConfig:
+  #   Type: AWS::CodeDeploy::DeploymentConfig
+  #   # DependsOn:
+  #   Properties: 
+      # ComputePlatform: String
+      # DeploymentConfigName: String
+      # MinimumHealthyHosts: 
+      #   MinimumHealthyHosts
+      # TrafficRoutingConfig: 
+      #   TrafficRoutingConfig
+    
+  MyDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    # DependsOn:
+    Properties: 
+      # AlarmConfiguration: 
+      #   AlarmConfiguration
+      ApplicationName: !Ref MyCodeDeployApplication
+      # AutoRollbackConfiguration:
+      #   Enabled: true
+      #   Events:
+      #     - DEPLOYMENT_FAILURE
+      # AutoScalingGroups:
+      #   - !Ref MyAutoScalingGroup
+      # BlueGreenDeploymentConfiguration: 
+      #   BlueGreenDeploymentConfiguration
+      # Deployment: 
+        # Description: String
+        # IgnoreApplicationStopFailures: Boolean
+        # Revision: 
+          # GitHubLocation: 
+          #   GitHubLocation
+          # RevisionType: S3
+          # S3Location: 
+          #   Bucket: !Ref S3Bucket
+          #   BundleType: zip
+            # ETag: String
+            # Key: my-app.zip
+            # Version: String
+      DeploymentConfigName: CodeDeployDefault.AllAtOnce
+      DeploymentGroupName: app-server-dg
+      # DeploymentStyle:
+      #   DeploymentOption: WITH_TRAFFIC_CONTROL
+      #   DeploymentType: IN_PLACE
+      Ec2TagFilters:
+        - Key: Name
+          Value: app-ec2
+          Type: "KEY_AND_VALUE"
+      # Ec2TagSet: 
+      #   EC2TagSet
+      # ECSServices: 
+      #   - ECSService
+      # LoadBalancerInfo:
+      #   TargetGroupInfoList:
+      #     - Name: !Ref MyTargetGroup
+      # OnPremisesInstanceTagFilters: 
+      #   - TagFilter
+      # OnPremisesTagSet: 
+      #   OnPremisesTagSet
+      # OutdatedInstancesStrategy: String
+      ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
+      # Tags: 
+      #   - Tag
+      # TriggerConfigurations: 
+      #   - TriggerConfig
+
+  WebsiteCodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    # DependsOn:
+    Properties: 
+      ApplicationName: app-website-cd
+      # ComputePlatform: Server
+      # Tags: 
+      #   - Tag
+    
+  WebsiteDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    # DependsOn:
+    Properties: 
+      # AlarmConfiguration: 
+      #   AlarmConfiguration
+      ApplicationName: !Ref WebsiteCodeDeployApplication
+      # AutoRollbackConfiguration:
+      #   Enabled: true
+      #   Events:
+      #     - DEPLOYMENT_FAILURE
+      # AutoScalingGroups:
+      #   - !Ref MyAutoScalingGroup
+      # BlueGreenDeploymentConfiguration: 
+      #   BlueGreenDeploymentConfiguration
+      # Deployment: 
+        # Description: String
+        # IgnoreApplicationStopFailures: Boolean
+        # Revision: 
+          # GitHubLocation: 
+          #   GitHubLocation
+          # RevisionType: S3
+          # S3Location: 
+          #   Bucket: !Ref S3Bucket
+          #   BundleType: zip
+            # ETag: String
+            # Key: my-app.zip
+            # Version: String
+      DeploymentConfigName: CodeDeployDefault.AllAtOnce
+      DeploymentGroupName: app-website-dg
+      # DeploymentStyle:
+      #   DeploymentOption: WITH_TRAFFIC_CONTROL
+      #   DeploymentType: IN_PLACE
+      Ec2TagFilters:
+        - Key: Name
+          Value: app-ec2
+          Type: "KEY_AND_VALUE"
+      # Ec2TagSet: 
+      #   EC2TagSet
+      # ECSServices: 
+      #   - ECSService
+      # LoadBalancerInfo:
+      #   TargetGroupInfoList:
+      #     - Name: !Ref MyTargetGroup
+      # OnPremisesInstanceTagFilters: 
+      #   - TagFilter
+      # OnPremisesTagSet: 
+      #   OnPremisesTagSet
+      # OutdatedInstancesStrategy: String
+      ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
+      # Tags: 
+      #   - Tag
+      # TriggerConfigurations: 
+      #   - TriggerConfig
+
+  # MyPipeline:
+  #   Type: AWS::CodePipeline::Pipeline
+  #   # DependsOn:
+  #   Properties: 
+  #     ArtifactStore:
+  #       Location: !Ref S3Bucket
+  #       Type: S3
+  #     # ArtifactStores: 
+  #     #   - ArtifactStoreMap
+  #     # DisableInboundStageTransitions: 
+  #     #   - StageTransition
+  #     Name: "my-rrr-codepipeline"
+  #     RestartExecutionOnUpdate: true
+  #     RoleArn: !GetAtt CodePipelineServiceRole.Arn
+  #     Stages:
+  #       - Name: Source
+  #         Actions:
+  #           - Name: SourceAction
+  #             ActionTypeId:
+  #               Category: Source
+  #               Owner: AWS
+  #               Version: 1
+  #               Provider: S3
+  #             Configuration:
+  #               S3Bucket: !Ref S3Bucket
+  #               S3ObjectKey: app-server.zip
+  #             OutputArtifacts:
+  #               - Name: SourceOutput
+  #       - Name: Deploy
+  #         Actions:
+  #           - Name: DeployAction
+  #             ActionTypeId:
+  #               Category: Deploy
+  #               Owner: AWS
+  #               Version: 1
+  #               Provider: CodeDeploy
+  #             Configuration:
+  #               ApplicationName: !Ref MyCodeDeployApplication
+  #               DeploymentGroupName: app-dg
+  #             InputArtifacts:
+  #               - Name: SourceOutput
+  #             RunOrder: 1
+  #     # Tags: 
+  #     #   - Tag
+
+  # MyCustomActionType:
+  #   Type: AWS::CodePipeline::CustomActionType
+  #   # DependsOn:
+  #   Properties: 
+  #     Category: String
+  #     ConfigurationProperties: 
+  #       - ConfigurationProperties
+  #     InputArtifactDetails: 
+  #       ArtifactDetails
+  #     OutputArtifactDetails: 
+  #       ArtifactDetails
+  #     Provider: String
+  #     Settings: 
+  #       Settings
+  #     Tags: 
+  #       - Tag
+  #     Version: String
+
+  # MyWebhook:
+  #   Type: AWS::CodePipeline::Webhook
+  #   # DependsOn:
+  #   Properties: 
+  #     Authentication: String
+  #     AuthenticationConfiguration: 
+  #       WebhookAuthConfiguration
+  #     Filters: 
+  #       - WebhookFilterRule
+  #     Name: String
+  #     RegisterWithThirdParty: Boolean
+  #     TargetAction: String
+  #     TargetPipeline: String
+  #     TargetPipelineVersion: Integer
+
+  CodeDeployServiceRole:
+    Type: "AWS::IAM::Role"
+    # DependsOn:
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "codedeploy.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      Policies:
+        - PolicyName: "CodeDeployServiceRolePolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - autoscaling:*
+                  - codedeploy:*
+                  - ec2:*
+                  - elasticloadbalancing:*
+                  - s3:*
+                  - cloudwatch:*
+                  - logs:*
+                  - sts:*
+                  # - s3:List*
+                  # - s3:CreateBucket
+                  # - s3:PutObject
+                  # - s3:PutObjectAcl
+                Resource: "*"
+              - Effect: "Allow"
+                Action:
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:PutObject"
+                  - "s3:ListBucket"
+                Resource: "arn:aws:s3:::*"
+
+  CodePipelineServiceRole:
+    Type: "AWS::IAM::Role"
+    # DependsOn:
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "codepipeline.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      Policies:
+        - PolicyName: "CodePipelineServiceRolePolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:*"
+                  - "codecommit:*"
+                  - "codedeploy:*"
+                  - "codepipeline:*"
+                  - "cloudformation:*"
+                  - "iam:PassRole"
+                Resource: "*"
+
+  # BackupVault:
+  #   Type: "AWS::Backup::BackupVault"
+  #   # DependsOn:
+  #   Properties:
+  #     BackupVaultName: "app-backup-vault"
+  # BackupVault:
+  #   Type: "AWS::Backup::BackupVault"
+  #   DeletionPolicy: Delete   # o Retain, ma non basta da solo
+  #   Properties:
+  #     BackupVaultName: "app-backup-vault"
+  #     # BackupVaultName: !Sub "${AWS::StackName}-backup-vault"
+  #     # ← AGGIUNGI QUESTA riga
+  #     BackupVaultTags:
+  #       # qualsiasi tag va bene, l’importante è che esista questa sezione
+  #       created-by: cloudformation
+  #   # ← AGGIUNGI ANCHE QUESTO blocco
+  #   Metadata:
+  #     "AWS::CloudFormation::DeletionPolicy": "Delete"   # non basta
+  #     # La proprietà VERA che serve dal 2023 in poi è questa:
+  #     "AWS::Backup::DeleteRecoveryPointsOnVaultDelete": true
+
+  # BackupVaultCleanup:
+  #   Type: "Custom::CleanupBackupVault"
+  #   Properties:
+  #     ServiceToken: !GetAtt CleanupBackupVaultFunction.Arn
+  #     BackupVaultName: !Ref BackupVault
+
+  # LambdaExecutionRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: lambda.amazonaws.com
+  #           Action: sts:AssumeRole
+  #     ManagedPolicyArns:
+  #       - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  #     Policies:
+  #       - PolicyName: BackupFullAccess
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - backup:DeleteRecoveryPoint
+  #                 - backup:ListRecoveryPointsByBackupVault
+  #                 - backup:DeleteBackupVault
+  #               Resource: "*"
+
+  # CleanupBackupVaultFunction:
+  #   Type: AWS::Lambda::Function
+  #   Properties:
+  #     Handler: index.handler
+  #     Role: !GetAtt LambdaExecutionRole.Arn
+  #     Runtime: python3.12
+  #     Timeout: 900
+  #     Code:
+  #       ZipFile: |
+  #         import cfnresponse
+  #         import boto3
+  #         from botocore.exceptions import ClientError
+  #         import time
+
+  #         backup = boto3.client('backup')
+
+  #         def handler(event, context):
+  #           try:
+  #             vault_name = event['ResourceProperties']['BackupVaultName']
+  #             if event['RequestType'] == 'Delete':
+  #               print(f"Pulizia vault {vault_name}")
+
+  #               # Cancella tutti i recovery point (anche con lock)
+  #               paginator = backup.get_paginator('list_recovery_points_by_backup_vault')
+  #               for page in paginator.paginate(BackupVaultName=vault_name):
+  #                 for rp in page.get('RecoveryPoints', []):
+  #                   arn = rp['RecoveryPointArn']
+  #                   print(f"Cancello {arn}")
+  #                   try:
+  #                     backup.delete_recovery_point(
+  #                       BackupVaultName=vault_name,
+  #                       RecoveryPointArn=arn,
+  #                       Force=True   # <-- questo ignora il lock!
+  #                     )
+  #                   except Exception as e:
+  #                     print(f"Errore su {arn}: {e}")
+
+  #               # Aspetta che siano davvero spariti
+  #               while True:
+  #                 remaining = backup.list_recovery_points_by_backup_vault(
+  #                   BackupVaultName=vault_name
+  #                 ).get('RecoveryPoints', [])
+  #                 if not remaining:
+  #                   break
+  #                 print(f"Aspetto che spariscano {len(remaining)} recovery point...")
+  #                 time.sleep(5)
+
+  #               # Ora cancella il vault
+  #               backup.delete_backup_vault(BackupVaultName=vault_name)
+  #               print(f"Vault {vault_name} eliminato")
+
+  #             cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+  #           except Exception as e:
+  #             print(f"Errore: {str(e)}")
+  #             cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": str(e)})
+
+  # BackupPlan:
+  #   Type: "AWS::Backup::BackupPlan"
+  #   # DependsOn:
+  #   Properties:
+  #     BackupPlan:
+  #       BackupPlanName: "app-db-backup-plan"
+  #       BackupPlanRule:
+  #         - RuleName: "HourlyBackup"
+  #           TargetBackupVault: !Ref BackupVault
+  #           # ScheduleExpression: "cron(0 0/1 * * ? *)"  # Esegue il backup all’inizio di ogni ora
+  #           ScheduleExpression: "cron(15 0/1 * * ? *)"
+  #           StartWindowMinutes: 60
+  #           CompletionWindowMinutes: 180
+  #           Lifecycle:
+  #             DeleteAfterDays: 7  # Ad esempio, conservare questi backup per una settimana
+  #           RecoveryPointTags:
+  #             Backup: "Hourly"
+  #         - RuleName: "DailyBackup"
+  #           TargetBackupVault: !Ref BackupVault
+  #           ScheduleExpression: "cron(0 4 * * ? *)" # Ogni giorno alle 4:00 UTC
+  #           StartWindowMinutes: 60
+  #           CompletionWindowMinutes: 180
+  #           Lifecycle:
+  #             DeleteAfterDays: 35
+  #           RecoveryPointTags:
+  #             Backup: "Daily"
+
+  # BackupSelection:
+  #   Type: "AWS::Backup::BackupSelection"
+  #   # DependsOn:
+  #   Properties:
+  #     BackupPlanId: !Ref BackupPlan
+  #     BackupSelection:
+  #       SelectionName: "DailyBackupSelection"
+  #       IamRoleArn: !GetAtt BackupRole.Arn
+  #       Resources:
+  #         - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${EC2Instance}
+
+  # BackupRole:
+  #   Type: "AWS::IAM::Role"
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: "Allow"
+  #           Principal:
+  #             Service: "backup.amazonaws.com"
+  #           Action: "sts:AssumeRole"            
+  #     ManagedPolicyArns:
+  #       - "arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup"
+  #     Policies:
+  #       - PolicyName: "Custom-EC2-Backup-Permissions"
+  #         PolicyDocument:
+  #           Version: "2012-10-17"
+  #           Statement:
+  #             - Effect: "Allow"
+  #               Action:
+  #                 - "ec2:CreateImage"
+  #                 - "ec2:CreateSnapshot"
+  #                 - "ec2:DeleteSnapshot"
+  #                 - "ec2:Describe*"
+  #                 - "ec2:CreateTags"
+  #                 - "ec2:CopySnapshot"
+  #                 - "ec2:ModifySnapshotAttribute"
+  #               Resource: "*"
+  #             - Effect: "Allow"
+  #               Action:
+  #                 - "tag:GetResources"
+  #               Resource: "*"
+
+  # S3Bucket:
+  #   Type: "AWS::S3::Bucket"
+  #   # DependsOn:
+  #   Properties:
+  #     # AccelerateConfiguration: 
+  #     #   AccelerateConfiguration
+  #     AccessControl: "Private"
+  #     # AnalyticsConfigurations: 
+  #     #   - AnalyticsConfiguration
+  #     # BucketEncryption: 
+  #     #   BucketEncryption
+  #     BucketName: my-s3-pipeline-bucket
+  #     # CorsConfiguration: 
+  #     #   CorsConfiguration
+  #     # IntelligentTieringConfigurations: 
+  #     #   - IntelligentTieringConfiguration
+  #     # InventoryConfigurations: 
+  #     #   - InventoryConfiguration
+  #     # LifecycleConfiguration: 
+  #     #   LifecycleConfiguration
+  #     # LoggingConfiguration: 
+  #     #   LoggingConfiguration
+  #     # MetricsConfigurations: 
+  #     #   - MetricsConfiguration
+  #     # NotificationConfiguration: 
+  #     #   NotificationConfiguration
+  #     # ObjectLockConfiguration: 
+  #     #   ObjectLockConfiguration
+  #     # ObjectLockEnabled: Boolean
+  #     # OwnershipControls: 
+  #     #   OwnershipControls
+  #     # PublicAccessBlockConfiguration: 
+  #     #   PublicAccessBlockConfiguration
+  #     # ReplicationConfiguration: 
+  #     #   ReplicationConfiguration
+  #     # Tags: 
+  #     #   - Tag
+  #     VersioningConfiguration:
+  #       Status: "Enabled"
+  #     # WebsiteConfiguration: 
+  #     #   WebsiteConfiguration
+
+  # S3BucketPolicy:
+  #   Type: "AWS::S3::BucketPolicy"
+  #   # DependsOn:
+  #   Properties:
+  #     Bucket: !Ref S3Bucket
+  #     PolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Sid: "AllowGetObject"
+  #           Effect: "Allow"
+  #           Principal: "*"
+  #           Action: "s3:GetObject"
+  #           Resource: !Join [ "", [ "arn:aws:s3:::", !Ref S3Bucket, "/*" ] ]
+
+  MyCacheSubnetGroup:
+    Type: "AWS::ElastiCache::SubnetGroup"
+    # DependsOn:
+    Properties:
+      Description: "My cache subnet group"
+      SubnetIds:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+
+  # MyCacheParameterGroup:
+  #   Type: "AWS::ElastiCache::ParameterGroup"
+  #   # DependsOn:
+  #   # Properties:
+  #     CacheParameterGroupFamily: "redis5.0"
+  #     Description: "My cache parameter group"
+  #     Properties:
+  #       appendonly: yes
+  #       maxmemory: 512mb
+
+  # MyCacheCluster:
+  #   Type: "AWS::ElastiCache::CacheCluster"
+  #   # DependsOn:
+  #   Properties:
+  #     AutoMinorVersionUpgrade: true
+  #     CacheNodeType: cache.t3.micro
+  #     CacheParameterGroupName: !Ref MyCacheParameterGroup
+  #     CacheSubnetGroupName: !Ref MyCacheSubnetGroup
+  #     Engine: redis
+  #     EngineVersion: 7.0.4
+  #     NumCacheNodes: 1
+  #     Port: 6379
+  #     PreferredAvailabilityZones:
+  #       - !Select [0, !GetAZs ""]
+  #       - !Select [1, !GetAZs ""]
+  #     SecurityGroupIds:
+  #       - !Ref MyCacheSecurityGroup
+
+  MyReplicationGroup:
+    Type: "AWS::ElastiCache::ReplicationGroup"
+    # DependsOn:
+    Properties:
+      # AtRestEncryptionEnabled: Boolean
+      # AuthToken: String
+      AutomaticFailoverEnabled: true
+      # AutoMinorVersionUpgrade: Boolean
+      CacheNodeType: cache.t3.micro
+      # CacheParameterGroupName: !Ref MyCacheParameterGroup
+      CacheSubnetGroupName: !Ref MyCacheSubnetGroup
+      # CacheSecurityGroupNames: 
+      #   - String
+      # CacheSubnetGroupName: String
+      # DataTieringEnabled: Boolean
+      Engine: redis
+      EngineVersion: 7.0
+      # GlobalReplicationGroupId: String
+      # IpDiscovery: String
+      # KmsKeyId: String
+      # LogDeliveryConfigurations: 
+      #   - LogDeliveryConfigurationRequest
+      # MultiAZEnabled: Boolean
+      # NetworkType: String
+      # NodeGroupConfiguration: 
+      #   - NodeGroupConfiguration
+      # NotificationTopicArn: String
+      NumCacheClusters: 2
+      # NumNodeGroups: 1
+      Port: 6379
+      # PreferredCacheClusterAZs:
+      #   - !Select [0, !GetAZs ""]
+      #   - !Select [1, !GetAZs ""]
+      # PreferredMaintenanceWindow: String
+      # PrimaryClusterId: String
+      # ReplicasPerNodeGroup: Integer
+      ReplicationGroupDescription: "My replication group"
+      # ReplicationGroupId: String
+      SecurityGroupIds:
+        - !Ref MySecurityGroup
+      # SnapshotArns: 
+      #   - String
+      # SnapshotName: String
+      SnapshotRetentionLimit: 0
+      # SnapshottingClusterId: String
+      # SnapshotWindow: String
+      # Tags: 
+      #   - Tag
+      # TransitEncryptionEnabled: Boolean
+      # TransitEncryptionMode: String
+      # UserGroupIds: 
+      #   - String
+  
+
+# Outputs:
+#   PublicIp:
+#     Description: EC2 Instance Public Ip
+#     Value: !GetAtt EC2Instance.PublicIp
