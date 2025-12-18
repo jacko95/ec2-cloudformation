@@ -411,7 +411,7 @@ Resources:
       SubnetId: !Ref PublicSubnet1
       Tags:
        - Key: Name
-         Value: app-db     
+         Value: applicazione-db     
     #   Tenancy: String
       UserData:
         # Fn::Base64: !Sub |
@@ -510,32 +510,32 @@ Resources:
 
           sudo systemctl restart mysql
 
-          # sudo mkdir -p /var/backups/app
-          # sudo chmod 700 /var/backups/app
+          # sudo mkdir -p /var/backups/applicazione
+          # sudo chmod 700 /var/backups/applicazione
 
-          # sudo tee /home/ubuntu/app-backup.sh > /dev/null <<EOF
+          # sudo tee /home/ubuntu/applicazione-backup.sh > /dev/null <<EOF
           # #!/bin/bash
-          # backup_dir="/var/backups/app"
-          # backup_file="\$backup_dir/app-db_\$(date +"%Y_%m_%d_%H_%M_%S").sql"
-          # mysqldump -h 127.0.0.1 -P 3301 -u admin -p\$URL --databases app > "\$backup_file"
+          # backup_dir="/var/backups/applicazione"
+          # backup_file="\$backup_dir/applicazione-db_\$(date +"%Y_%m_%d_%H_%M_%S").sql"
+          # mysqldump -h 127.0.0.1 -P 3301 -u admin -p\$URL --databases applicazione > "\$backup_file"
           # cd "\$backup_dir"
           # ls -t | tail -n +11 | xargs rm --
           # EOF
 
-          # sudo chmod 700 /home/ubuntu/app-backup.sh
+          # sudo chmod 700 /home/ubuntu/applicazione-backup.sh
 
-          # sudo tee /etc/systemd/system/app-backup.service > /dev/null <<EOF
+          # sudo tee /etc/systemd/system/applicazione-backup.service > /dev/null <<EOF
           # [Unit]
-          # Description=Create app Backup
+          # Description=Create applicazione Backup
 
           # [Service]
           # Type=simple
-          # ExecStart=/bin/bash /home/ubuntu/app-backup.sh
+          # ExecStart=/bin/bash /home/ubuntu/applicazione-backup.sh
           # EOF
 
-          # sudo tee /etc/systemd/system/app-backup.timer > /dev/null <<EOF
+          # sudo tee /etc/systemd/system/applicazione-backup.timer > /dev/null <<EOF
           # [Unit]
-          # Description=Run Create app Backup every minute
+          # Description=Run Create applicazione Backup every minute
 
           # [Timer]
           # OnCalendar=*:0/1
@@ -545,8 +545,8 @@ Resources:
           # EOF
 
           # sudo systemctl daemon-reload
-          # sudo systemctl enable app-backup.timer
-          # sudo systemctl start app-backup.timer
+          # sudo systemctl enable applicazione-backup.timer
+          # sudo systemctl start applicazione-backup.timer
     #   Volumes: 
     #     - Volume
 
@@ -619,7 +619,7 @@ Resources:
       SubnetId: !Ref PublicSubnet1
       Tags:
        - Key: Name
-         Value: app-db-slave     
+         Value: applicazione-db-slave     
     #   Tenancy: String
       UserData:
         # Fn::Base64: !Sub |
@@ -882,7 +882,7 @@ Resources:
         - Key: "target_group_health.dns_failover.minimum_healthy_targets.count"
           Value: "1"
         # - Key: "stickiness.app_cookie.cookie_name"
-        #   Value: "app-app-cookie"
+        #   Value: "applicazione-app-cookie"
         - Key: "stickiness.type"
           # Value: "app_cookie"
           Value: "lb_cookie"
@@ -942,7 +942,7 @@ Resources:
           Value: "false"
         - Key: "routing.http.x_amzn_tls_version_and_cipher_suite.enabled"
           Value: "false"
-      Name: app-lb
+      Name: applicazione-lb
       Scheme: internet-facing
       SecurityGroups:
         - !Ref MySecurityGroup
@@ -1075,16 +1075,16 @@ Resources:
 
             sudo chmod +x /home
             sudo chmod +x /home/ubuntu
-            # sudo mkdir /home/ubuntu/app-server
-            # sudo mkdir /home/ubuntu/app-reservation-api
-            # sudo mkdir /home/ubuntu/app-reservation-app
-            sudo mkdir /home/ubuntu/app-api
-            sudo mkdir /home/ubuntu/app-app
-            # sudo chmod -R 777 app-server
-            # sudo chmod -R 777 app-reservation-api
-            # sudo chmod -R 777 app-reservation-app
-            sudo chmod -R 777 app-api
-            sudo chmod -R 777 app-app
+            # sudo mkdir /home/ubuntu/applicazione-server
+            # sudo mkdir /home/ubuntu/applicazione-reservation-api
+            # sudo mkdir /home/ubuntu/applicazione-reservation-app
+            sudo mkdir /home/ubuntu/applicazione-api
+            sudo mkdir /home/ubuntu/applicazione-app
+            # sudo chmod -R 777 applicazione-server
+            # sudo chmod -R 777 applicazione-reservation-api
+            # sudo chmod -R 777 applicazione-reservation-app
+            sudo chmod -R 777 applicazione-api
+            sudo chmod -R 777 applicazione-app
 
             curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
             sudo apt install -y nodejs
@@ -1248,12 +1248,12 @@ Resources:
                     "collect_list": [
                       {
                         "file_path": "/var/log/nginx/access.log",
-                        "log_group_name": "app-ec2-nginx-access-log",
+                        "log_group_name": "applicazione-ec2-nginx-access-log",
                         "log_stream_name": "{instance_id}"
                       },
                       {
                         "file_path": "/var/log/nginx/error.log",
-                        "log_group_name": "app-ec2-nginx-error-log",
+                        "log_group_name": "applicazione-ec2-nginx-error-log",
                         "log_stream_name": "{instance_id}"
                       }
                     ]
@@ -1273,7 +1273,7 @@ Resources:
             # sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/bin/config.json -s
             # sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a status
 
-      LaunchTemplateName: app-lt
+      LaunchTemplateName: applicazione-lt
       # TagSpecifications: 
       #   - LaunchTemplateTagSpecification
       # VersionDescription: String
@@ -1294,7 +1294,7 @@ Resources:
     Type: AWS::AutoScaling::AutoScalingGroup
     # DependsOn:
     Properties: 
-      AutoScalingGroupName: app-as
+      AutoScalingGroupName: applicazione-as
       AvailabilityZones:
         - "eu-central-1a"
         - "eu-central-1b"
@@ -1335,7 +1335,7 @@ Resources:
       Tags: 
         - Key: Name
           PropagateAtLaunch: true
-          Value: app-ec2
+          Value: applicazione-ec2
       TargetGroupARNs:
         - !Ref MyTargetGroup
     #   TerminationPolicies: 
@@ -1393,12 +1393,12 @@ Resources:
         - Field: host-header
           HostHeaderConfig:
             Values:
-              - "app.com" # Cattura le richieste senza "www"
+              - "applicazione.com" # Cattura le richieste senza "www"
       Actions:
         - Type: redirect
           RedirectConfig:
             Protocol: HTTPS
-            Host: "www.app.com"
+            Host: "www.applicazione.com"
             Port: "443"
             StatusCode: HTTP_301
 
@@ -1436,7 +1436,7 @@ Resources:
   #   #   DBClusterIdentifier: String
   #   #   DBClusterSnapshotIdentifier: String
   #     DBInstanceClass: db.t3.micro # !Ref DatabaseInstanceClass
-  #     DBInstanceIdentifier: app-rds # !Ref DatabaseInstanceIdentifier
+  #     DBInstanceIdentifier: applicazione-rds # !Ref DatabaseInstanceIdentifier
   #     DBName: dbname # !Ref DatabaseName
   #   #   DBSecurityGroups: 
   #   #     - String
@@ -1502,7 +1502,7 @@ Resources:
     Type: AWS::CodeDeploy::Application
     # DependsOn:
     Properties: 
-      ApplicationName: app-server-cd
+      ApplicationName: applicazione-server-cd
       # ComputePlatform: Server
       # Tags: 
       #   - Tag
@@ -1547,13 +1547,13 @@ Resources:
             # Key: my-app.zip
             # Version: String
       DeploymentConfigName: CodeDeployDefault.AllAtOnce
-      DeploymentGroupName: app-server-dg
+      DeploymentGroupName: applicazione-server-dg
       # DeploymentStyle:
       #   DeploymentOption: WITH_TRAFFIC_CONTROL
       #   DeploymentType: IN_PLACE
       Ec2TagFilters:
         - Key: Name
-          Value: app-ec2
+          Value: applicazione-ec2
           Type: "KEY_AND_VALUE"
       # Ec2TagSet: 
       #   EC2TagSet
@@ -1577,7 +1577,7 @@ Resources:
     Type: AWS::CodeDeploy::Application
     # DependsOn:
     Properties: 
-      ApplicationName: app-website-cd
+      ApplicationName: applicazione-website-cd
       # ComputePlatform: Server
       # Tags: 
       #   - Tag
@@ -1611,13 +1611,13 @@ Resources:
             # Key: my-app.zip
             # Version: String
       DeploymentConfigName: CodeDeployDefault.AllAtOnce
-      DeploymentGroupName: app-website-dg
+      DeploymentGroupName: applicazione-website-dg
       # DeploymentStyle:
       #   DeploymentOption: WITH_TRAFFIC_CONTROL
       #   DeploymentType: IN_PLACE
       Ec2TagFilters:
         - Key: Name
-          Value: app-ec2
+          Value: applicazione-ec2
           Type: "KEY_AND_VALUE"
       # Ec2TagSet: 
       #   EC2TagSet
@@ -1662,7 +1662,7 @@ Resources:
   #               Provider: S3
   #             Configuration:
   #               S3Bucket: !Ref S3Bucket
-  #               S3ObjectKey: app-server.zip
+  #               S3ObjectKey: applicazione-server.zip
   #             OutputArtifacts:
   #               - Name: SourceOutput
   #       - Name: Deploy
@@ -1675,7 +1675,7 @@ Resources:
   #               Provider: CodeDeploy
   #             Configuration:
   #               ApplicationName: !Ref MyCodeDeployApplication
-  #               DeploymentGroupName: app-dg
+  #               DeploymentGroupName: applicazione-dg
   #             InputArtifacts:
   #               - Name: SourceOutput
   #             RunOrder: 1
@@ -1790,12 +1790,12 @@ Resources:
   #   Type: "AWS::Backup::BackupVault"
   #   # DependsOn:
   #   Properties:
-  #     BackupVaultName: "app-backup-vault"
+  #     BackupVaultName: "applicazione-backup-vault"
   # BackupVault:
   #   Type: "AWS::Backup::BackupVault"
   #   DeletionPolicy: Delete   # o Retain, ma non basta da solo
   #   Properties:
-  #     BackupVaultName: "app-backup-vault"
+  #     BackupVaultName: "applicazione-backup-vault"
   #     # BackupVaultName: !Sub "${AWS::StackName}-backup-vault"
   #     # ← AGGIUNGI QUESTA riga
   #     BackupVaultTags:
@@ -1898,7 +1898,7 @@ Resources:
   #   # DependsOn:
   #   Properties:
   #     BackupPlan:
-  #       BackupPlanName: "app-db-backup-plan"
+  #       BackupPlanName: "applicazione-db-backup-plan"
   #       BackupPlanRule:
   #         - RuleName: "HourlyBackup"
   #           TargetBackupVault: !Ref BackupVault
